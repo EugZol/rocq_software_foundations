@@ -183,11 +183,15 @@ Theorem andb_eq_orb :
   forall (b c : bool),
   (andb b c = orb b c) ->
   b = c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  destruct b; destruct c; auto.
+Qed.
 
 Theorem add_assoc : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  induction n; simpl; auto.
+Qed.
 
 Fixpoint nonzeros (lst : list nat) :=
   match lst with
@@ -196,9 +200,18 @@ Fixpoint nonzeros (lst : list nat) :=
   | h :: t => h :: nonzeros t
   end.
 
+Theorem cons_to_app {X : Type} (head : X) (l : list X) :
+  head :: l = [head] ++ l.
+Proof. reflexivity. Qed.
+
 Lemma nonzeros_app : forall lst1 lst2 : list nat,
   nonzeros (lst1 ++ lst2) = (nonzeros lst1) ++ (nonzeros lst2).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros.
+  induction lst1 as [| x rest ih].
+  - reflexivity.
+  - destruct x; simpl; rewrite ih; trivial.
+Qed.
 
 (** [] *)
 
@@ -283,7 +296,9 @@ Qed.
 
 Theorem add_assoc' : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  induction n; simpl; auto.
+Qed.
 
 (** [] *)
 
@@ -352,7 +367,9 @@ Qed.
     Prove that 100 is even. Your proof script should be quite short. *)
 
 Theorem ev100: ev 100.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  repeat constructor.
+Qed.
 
 (** [] *)
 
@@ -587,7 +604,39 @@ Qed.
 Lemma re_opt_match' : forall T (re: reg_exp T) s,
   s =~ re -> s =~ re_opt re.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros T re s M.
+  induction M
+    as [| x'
+        | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+        | s1 re1 re2 Hmatch IH | s2 re1 re2 Hmatch IH
+        | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2].
+  - apply MEmpty.
+  - apply MChar.
+  - destruct re1;
+      try (solve [inversion IH1; try destruct re2; auto]);
+      destruct re2;
+      try (solve [inversion IH2; try rewrite app_nil_r; auto]);
+      try (solve [apply MApp; auto]).
+  - destruct re1;
+      destruct re2;
+      try trivial;
+      try (apply MUnionL; trivial);
+      inversion IH.
+  - destruct re1;
+      try trivial;
+      destruct re2;
+      try (apply MUnionR; trivial);
+      inversion IH.
+ - (* MStar0 *)
+   destruct re; simpl; try apply MEmpty; apply MStar0.
+ - (* MStarApp *)
+   destruct re;
+     try (apply star_app; [apply MStar1 | idtac]; trivial);
+     inversion IH1.
+     auto.
+Qed.
+
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_re_opt : option (nat*string) := None.
 (** [] *)
@@ -922,20 +971,28 @@ Qed.
 
 Theorem plus_id_exercise_from_basics : forall n m o : nat,
   n = m -> m = o -> n + m = m + o.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  auto.
+Qed.
 
 Theorem add_assoc_from_induction : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  lia.
+Qed.
 
 Theorem S_injective_from_tactics : forall (n m : nat),
   S n = S m ->
   n = m.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  auto.
+Qed.
 
 Theorem or_distributes_over_and_from_logic : forall P Q R : Prop,
     P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  tauto.
+Qed.
 
 (** [] *)
 
@@ -1158,8 +1215,7 @@ Lemma weak_pumping : forall T (re : reg_exp T) s,
         s2 <> [] /\
         forall m, s1 ++ napp m s2 ++ s3 =~ re.
 
-Proof.
-(* FILL IN HERE *) Admitted.
+Proof. Admitted.
 (* Do not modify the following line: *)
 Definition manual_grade_for_pumping_redux : option (nat*string) := None.
 (** [] *)
@@ -1179,8 +1235,7 @@ Lemma pumping : forall T (re : reg_exp T) s,
         length s1 + length s2 <= pumping_constant re /\
         forall m, s1 ++ napp m s2 ++ s3 =~ re.
 
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. Admitted.
 (* Do not modify the following line: *)
 Definition manual_grade_for_pumping_redux_strong : option (nat*string) := None.
 (** [] *)
@@ -1372,7 +1427,9 @@ Qed.
 
 Theorem andb3_exchange :
   forall b c d, andb (andb b c) d = andb (andb b d) c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros; destructpf b; destructpf c; destructpf d.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (andb_true_elim2)
@@ -1394,16 +1451,17 @@ Qed.
     own, improved version of [destructpf]. Use it to prove the
     theorem. *)
 
-(*
-Ltac destructpf' x := ...
-*)
+Ltac destructpf' x := destruct x; auto.
 
 (** Your one-shot proof should need only [intros] and
     [destructpf']. *)
 
 Theorem andb_true_elim2' : forall b c : bool,
     andb b c = true -> c = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros.
+  destructpf' b; destructpf' c.
+Qed.
 
 (** Double-check that [intros] and your new [destructpf'] still
     suffice to prove this earlier theorem -- i.e., that your improved
@@ -1411,7 +1469,10 @@ Proof. (* FILL IN HERE *) Admitted.
 
 Theorem andb3_exchange' :
   forall b c d, andb (andb b c) d = andb (andb b d) c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros.
+  destructpf' b; destructpf' c; destructpf' d.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
