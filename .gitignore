@@ -5,3 +5,4 @@
 *.vos
 Makefile.coq*
 .Makefile*
+.lia.cache
