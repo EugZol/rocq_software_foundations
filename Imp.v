@@ -440,7 +440,7 @@ Proof.
      then need to interrupt Coq to make it listen to you again.  (In
      Proof General, [C-c C-c] does this.) *)
   (* repeat rewrite Nat.add_comm. *)
-Admitted.
+Abort.
 
 (** Wait -- did we just write an infinite loop in Coq?!?!
 
@@ -463,23 +463,41 @@ Admitted.
     it is sound.  Use the tacticals we've just seen to make the proof
     as short and elegant as possible. *)
 
-Fixpoint optimize_0plus_b (b : bexp) : bexp
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint optimize_0plus_b (b : bexp) : bexp :=
+  match b with
+  | BEq a1 a2   => BEq (optimize_0plus a1) (optimize_0plus a2)
+  | BNeq a1 a2  => BNeq (optimize_0plus a1) (optimize_0plus a2)
+  | BLe a1 a2   => BLe (optimize_0plus a1) (optimize_0plus a2)
+  | BGt a1 a2   => BGt (optimize_0plus a1) (optimize_0plus a2)
+
+  | BTrue       => BTrue
+  | BFalse      => BFalse
+  | BNot b'     => BNot (optimize_0plus_b b')
+  | BAnd b1 b2  => BAnd (optimize_0plus_b b1) (optimize_0plus_b b2)
+  end.
 
 Example optimize_0plus_b_test1:
   optimize_0plus_b (BNot (BGt (APlus (ANum 0) (ANum 4)) (ANum 8))) =
                    (BNot (BGt (ANum 4) (ANum 8))).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example optimize_0plus_b_test2:
   optimize_0plus_b (BAnd (BLe (APlus (ANum 0) (ANum 4)) (ANum 5)) BTrue) =
                    (BAnd (BLe (ANum 4) (ANum 5)) BTrue).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
+
+(*Theorem : aeval (optimize_0plus a1) =? aeval (optimize_0plus a2)*)
 
 Theorem optimize_0plus_b_sound : forall b,
   beval (optimize_0plus_b b) = beval b.
 Proof.
-  (* FILL IN HERE *) Admitted.
+Proof.
+  induction b;
+    simpl; try reflexivity;
+    try (solve [unfold optimize_0plus_b; rewrite !optimize_0plus_sound; reflexivity]).
+    - rewrite IHb; reflexivity.
+    - rewrite IHb1. rewrite IHb2. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (optimize)
@@ -788,7 +806,7 @@ Inductive aevalR : aexp -> nat -> Prop :=
 
     Write out a corresponding definition of boolean evaluation as a
     relation (in inference rule notation). *)
-(* FILL IN HERE *)
+
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_beval_rules : option (nat*string) := None.
@@ -857,15 +875,58 @@ Qed.
     [aevalR], and prove that it is equivalent to [beval]. *)
 
 Reserved Notation "e '==>b' b" (at level 90, left associativity).
-Inductive bevalR: bexp -> bool -> Prop :=
-(* FILL IN HERE *)
+Inductive bevalR : bexp -> bool -> Prop :=
+  | E_BTrue : bevalR BTrue true
+  | E_BFalse : bevalR BFalse false
+  | E_BEq (a1 a2 : aexp) (n1 n2 : nat) :
+      a1 ==> n1 ->
+      a2 ==> n2 ->
+      (BEq a1 a2) ==>b (n1 =? n2)
+  | E_BNeq (a1 a2 : aexp) (n1 n2 : nat) :
+      a1 ==> n1 ->
+      a2 ==> n2 ->
+      (BNeq a1 a2) ==>b (negb (n1 =? n2))
+  | E_BLe (a1 a2 : aexp) (n1 n2 : nat) :
+      a1 ==> n1 ->
+      a2 ==> n2 ->
+      (BLe a1 a2) ==>b (n1 <=? n2)
+  | E_BGt (a1 a2 : aexp) (n1 n2 : nat) :
+      a1 ==> n1 ->
+      a2 ==> n2 ->
+      (BGt a1 a2) ==>b (negb (n1 <=? n2))
+  | E_BNot (e : bexp) (b : bool) :
+      e ==>b b ->
+      (BNot e) ==>b (negb b)
+  | E_BAnd (e1 e2 : bexp) (b1 b2 : bool) :
+      e1 ==>b b1 ->
+      e2 ==>b b2 ->
+      (BAnd e1 e2) ==>b (b1 && b2)
 where "e '==>b' b" := (bevalR e b) : type_scope
 .
+
+(* Unset Printing Notations. *)
 
 Lemma bevalR_iff_beval : forall b bv,
   b ==>b bv <-> beval b = bv.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  split.
+  - intro H.
+    induction H; simpl; try reflexivity;
+      try rewrite !aevalR_iff_aeval in *; try rewrite H; try rewrite H0; try reflexivity.
+    + rewrite IHbevalR. reflexivity.
+    + rewrite IHbevalR1. rewrite IHbevalR2. reflexivity.
+  - intro H.
+    generalize dependent bv.
+    induction b; simpl; intros; subst.
+    + apply E_BTrue.
+    + apply E_BFalse.
+    + apply E_BEq; rewrite aevalR_iff_aeval; reflexivity.
+    + apply E_BNeq; rewrite aevalR_iff_aeval; reflexivity.
+    + apply E_BLe; rewrite aevalR_iff_aeval; reflexivity.
+    + apply E_BGt; rewrite aevalR_iff_aeval; reflexivity.
+    + apply E_BNot. apply IHb. reflexivity.
+    + apply E_BAnd; [apply IHb1 | apply IHb2]; reflexivity.
+Qed.
 (** [] *)
 
 End AExp.
