@@ -1630,7 +1630,12 @@ Example ceval_example2:
     Z := 2
   ]=> (Z !-> 2 ; Y !-> 1 ; X !-> 0).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply E_Seq with (X !-> 0).
+  { apply E_Asgn. reflexivity. }
+  apply E_Seq with (Y !-> 1; X !-> 0).
+  { apply E_Asgn. reflexivity. }
+  apply E_Asgn. reflexivity.
+Qed.
 (** [] *)
 
 Set Printing Implicit.
@@ -1644,15 +1649,48 @@ Check @ceval_example2.
     which you can reverse-engineer to discover the program you should
     write.  The proof of that theorem will be somewhat lengthy. *)
 
-Definition pup_to_n : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition pup_to_n : com :=
+  <{
+    Y := 0;
+    while X > 0 do
+      Y := Y + X;
+      X := X - 1
+    end
+  }>.
 
 Theorem pup_to_2_ceval :
   (X !-> 2) =[
     pup_to_n
-  ]=> (X !-> 0 ; Y !-> 3 ; X !-> 1 ; Y !-> 2 ; Y !-> 0 ; X !-> 2).
+  ]=> (X !-> 0; Y !-> 3; X !-> 1; Y !-> 2; Y !-> 0; X !-> 2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold pup_to_n.
+
+  apply E_Seq with (Y !-> 0; X !-> 2).
+  { apply E_Asgn. reflexivity. }
+
+  (* first iteration *)
+  apply E_WhileTrue with (X !-> 1; Y !-> 2; Y !-> 0; X !-> 2).
+  { (* condition *) reflexivity. }
+  { (* body/step *)
+    apply E_Seq with (Y !-> 2; Y !-> 0; X !-> 2).
+    { apply E_Asgn. reflexivity. }
+    apply E_Asgn.
+    reflexivity.
+  }
+
+  (* second iteration *)
+  apply E_WhileTrue with (X !-> 0; Y !-> 3; X !-> 1; Y !-> 2; Y !-> 0; X !-> 2).
+  { (* condition *) reflexivity. }
+  { (* body/step *)
+    apply E_Seq with (Y !-> 3; X !-> 1; Y !-> 2; Y !-> 0; X !-> 2).
+    { apply E_Asgn. reflexivity. }
+    apply E_Asgn.
+    reflexivity.
+  }
+
+  (* third iteration *)
+  apply E_WhileFalse. reflexivity.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1728,6 +1766,18 @@ Proof.
 
     State and prove a specification of [XtimesYinZ]. *)
 
+Theorem XtimesYinZ_spec : forall st x y st',
+  st X = x ->
+  st Y = y ->
+  st =[ XtimesYinZ ]=> st' ->
+  st' Z = x * y.
+Proof.
+  intros st x y st' hx hy Heval.
+
+  inversion Heval. subst. clear. simpl.
+  apply t_update_eq.
+Qed.
+
 (* FILL IN HERE *)
 
 (* Do not modify the following line: *)
@@ -1746,8 +1796,11 @@ Proof.
       [loopdef] terminates.  Most of the cases are immediately
       contradictory and so can be solved in one step with
       [discriminate]. *)
-
-  (* FILL IN HERE *) Admitted.
+  induction contra; try discriminate;
+    inversion Heqloopdef; subst.
+  - discriminate.
+  - apply IHcontra2. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (no_whiles_eqv)
@@ -1774,13 +1827,28 @@ Fixpoint no_whiles (c : com) : bool :=
     while loops.  Then prove its equivalence with [no_whiles]. *)
 
 Inductive no_whilesR: com -> Prop :=
- (* FILL IN HERE *)
+  | nw_skip : no_whilesR CSkip
+  | nw_asgn x a : no_whilesR (CAsgn x a)
+  | nw_seq c1 c2 : no_whilesR c1 -> no_whilesR c2 -> no_whilesR <{ c1; c2 }>
+  | nw_if b c1 c2 : no_whilesR c1 -> no_whilesR c2 -> no_whilesR (CIf b c1 c2)
 .
 
 Theorem no_whiles_eqv:
   forall c, no_whiles c = true <-> no_whilesR c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  split; intro H.
+  - induction c.
+    + apply nw_skip.
+    + apply nw_asgn.
+    + inversion H.
+      rewrite andb_true_iff in H1.
+      apply nw_seq; intuition.
+    + apply nw_if; inversion H;
+        rewrite andb_true_iff in H1; intuition.
+    + discriminate.
+  - induction H; simpl; try reflexivity;
+      rewrite andb_true_iff; intuition.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, standard (no_whiles_terminating)
@@ -1790,7 +1858,30 @@ Proof.
 
     Use either [no_whiles] or [no_whilesR], as you prefer. *)
 
-(* FILL IN HERE *)
+Theorem no_whiles_terminates :
+  forall c st, no_whilesR c -> exists st', st =[ c ]=> st'.
+Proof.
+  intros.
+  revert st.
+  induction H; intro st.
+  - exists st. apply E_Skip.
+  - exists (x !-> aeval st a ; st).
+    apply E_Asgn.
+    reflexivity.
+  - specialize (IHno_whilesR1 st).
+    destruct IHno_whilesR1 as [st' hst'].
+    specialize (IHno_whilesR2 st').
+    destruct IHno_whilesR2 as [st'' hst''].
+    exists st''.
+    apply E_Seq with st'; trivial.
+  - specialize (IHno_whilesR1 st).
+    destruct IHno_whilesR1 as [st' hst'].
+    specialize (IHno_whilesR2 st).
+    destruct IHno_whilesR2 as [st2' hst2'].
+    destruct (beval st b) eqn:hb.
+    + exists st'. apply E_IfTrue; trivial.
+    + exists st2'. apply E_IfFalse; trivial.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_no_whiles_terminating : option (nat*string) := None.
@@ -1861,8 +1952,19 @@ Inductive sinstr : Type :=
 
 Fixpoint s_execute (st : state) (stack : list nat)
                    (prog : list sinstr)
-                 : list nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+                 : list nat :=
+  match prog, stack with
+  | [], stack => stack
+  | (SPush n) :: prog_rest, _ => s_execute st (n :: stack) prog_rest
+  | (SLoad x) :: prog_rest, _ => s_execute st ((st x) :: stack) prog_rest
+  | SPlus :: prog_rest, a :: b :: stack_rest => s_execute st ((b + a) :: stack_rest) prog_rest
+  | SPlus :: prog_rest, _ => s_execute st stack prog_rest
+  | SMinus :: prog_rest, a :: b :: stack_rest => s_execute st ((b - a) :: stack_rest) prog_rest
+  | SMinus :: prog_rest, _ => s_execute st stack prog_rest
+  | SMult :: prog_rest, a :: b :: stack_rest => s_execute st ((b * a) :: stack_rest) prog_rest
+  | SMult :: prog_rest, _ => s_execute st stack prog_rest
+  end
+.
 
 Check s_execute.
 
@@ -1870,20 +1972,27 @@ Example s_execute1 :
      s_execute empty_st []
        [SPush 5; SPush 3; SPush 1; SMinus]
    = [2; 5].
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example s_execute2 :
      s_execute (X !-> 3) [3;4]
        [SPush 4; SLoad X; SMult; SPlus]
    = [15; 4].
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** Next, write a function that compiles an [aexp] into a stack
     machine program. The effect of running the program should be the
     same as pushing the value of the expression on the stack. *)
 
-Fixpoint s_compile (e : aexp) : list sinstr
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint s_compile (e : aexp) : list sinstr :=
+  match e with
+  | ANum n => [SPush n]
+  | AId x => [SLoad x]
+  | APlus a1 a2 => s_compile a1 ++ s_compile a2 ++ [SPlus]
+  | AMinus a1 a2 => s_compile a1 ++ s_compile a2 ++ [SMinus]
+  | AMult a1 a2 => s_compile a1 ++ s_compile a2 ++ [SMult]
+  end
+.
 
 (** After you've defined [s_compile], prove the following to test
     that it works. *)
@@ -1891,7 +2000,7 @@ Fixpoint s_compile (e : aexp) : list sinstr
 Example s_compile1 :
   s_compile <{ X - (2 * Y) }>
   = [SLoad X; SPush 2; SLoad Y; SMult; SMinus].
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (execute_app) *)
@@ -1904,7 +2013,13 @@ Example s_compile1 :
 Theorem execute_app : forall st p1 p2 stack,
   s_execute st stack (p1 ++ p2) = s_execute st (s_execute st stack p1) p2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction p1; intros.
+  - reflexivity.
+  - replace (a :: p1) with ([a] ++ p1) by reflexivity.
+    rewrite <- app_assoc.
+    destruct a; try apply IHp1;
+      destruct stack; try destruct stack; apply IHp1.
+Qed.
 
 (** [] *)
 
@@ -1918,14 +2033,20 @@ Proof.
 Lemma s_compile_correct_aux : forall st e stack,
   s_execute st stack (s_compile e) = aeval st e :: stack.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st e.
+  revert st.
+  induction e; intros; try reflexivity; simpl;
+    rewrite !execute_app; rewrite IHe1; rewrite IHe2; reflexivity.
+Qed.
 
 (** The main theorem should be a very easy corollary of that lemma. *)
 
 Theorem s_compile_correct : forall (st : state) (e : aexp),
   s_execute st [] (s_compile e) = [ aeval st e ].
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  apply s_compile_correct_aux.
+Qed.
 
 (** [] *)
 
@@ -1946,9 +2067,7 @@ Proof.
     would _not_ be equivalent to the original, since it would make more
     programs terminate.) *)
 
-(* FILL IN HERE
-
-    [] *)
+(* It's exactly the same as beval, because andb short-circuits *)
 
 Module BreakImp.
 (** **** Exercise: 4 stars, advanced (break_imp)
