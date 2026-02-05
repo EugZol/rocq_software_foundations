@@ -2067,7 +2067,7 @@ Qed.
     would _not_ be equivalent to the original, since it would make more
     programs terminate.) *)
 
-(* It's exactly the same as beval, because andb short-circuits *)
+(* It's exactly the same as beval, because [andb] short-circuits *)
 
 Module BreakImp.
 (** **** Exercise: 4 stars, advanced (break_imp)
@@ -2188,8 +2188,39 @@ Reserved Notation "st '=[' c ']=>' st' '/' s"
 
 Inductive ceval : com -> state -> result -> state -> Prop :=
   | E_Skip : forall st,
-      st =[ CSkip ]=> st / SContinue
-  (* FILL IN HERE *)
+      st =[ skip ]=> st / SContinue
+  | E_Break : forall st,
+      st =[ break ]=> st / SBreak
+  | E_Asgn  : forall st a n x,
+      aeval st a = n ->
+      st =[ x := a ]=> (x !-> n ; st) / SContinue
+  | E_SeqBreak : forall c1 c2 st st',
+      st  =[ c1 ]=> st' / SBreak  ->
+      st  =[ c1 ; c2 ]=> st' / SBreak
+  | E_SeqContinue :  forall c1 c2 st st' st'' result,
+      st  =[ c1 ]=> st' / SContinue  ->
+      st' =[ c2 ]=> st'' / result ->
+      st  =[ c1 ; c2 ]=> st'' / result
+  | E_IfTrue : forall st st' b c1 c2 result,
+      beval st b = true ->
+      st =[ c1 ]=> st' / result ->
+      st =[ if b then c1 else c2 end]=> st' / result
+  | E_IfFalse : forall st st' b c1 c2 result,
+      beval st b = false ->
+      st =[ c2 ]=> st' / result ->
+      st =[ if b then c1 else c2 end]=> st' / result
+  | E_WhileFalse : forall st b c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st / SContinue
+  | E_WhileTrueBreak : forall st st' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' / SBreak ->
+      st  =[ while b do c end ]=> st' / SContinue
+  | E_WhileTrueContinue : forall st st' st'' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' / SContinue ->
+      st' =[ while b do c end ]=> st'' / SContinue ->
+      st  =[ while b do c end ]=> st'' / SContinue
 
   where "st '=[' c ']=>' st' '/' s" := (ceval c st s st').
 
@@ -2199,33 +2230,49 @@ Theorem break_ignore : forall c st st' s,
      st =[ break; c ]=> st' / s ->
      st = st'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  inversion H; subst; try auto.
+  - inversion H5. reflexivity.
+  - inversion H2.
+Qed.
 
 Theorem while_continue : forall b c st st' s,
   st =[ while b do c end ]=> st' / s ->
   s = SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  inversion H; reflexivity.
+Qed.
 
 Theorem while_stops_on_break : forall b c st st',
   beval st b = true ->
   st =[ c ]=> st' / SBreak ->
   st =[ while b do c end ]=> st' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  inversion H0;
+    subst;
+    apply E_WhileTrueBreak;
+    trivial.
+Qed.
 
 Theorem seq_continue : forall c1 c2 st st' st'',
   st =[ c1 ]=> st' / SContinue ->
   st' =[ c2 ]=> st'' / SContinue ->
   st =[ c1 ; c2 ]=> st'' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  apply E_SeqContinue with st'; trivial.
+Qed.
 
 Theorem seq_stops_on_break : forall c1 c2 st st',
   st =[ c1 ]=> st' / SBreak ->
   st =[ c1 ; c2 ]=> st' / SBreak.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  apply E_SeqBreak.
+  trivial.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (while_break_true) *)
@@ -2234,7 +2281,15 @@ Theorem while_break_true : forall b c st st',
   beval st' b = true ->
   exists st'', st'' =[ c ]=> st' / SBreak.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros.
+  remember <{ while b do c end }>.
+  induction H; subst; try discriminate; inversion Heqc0; subst.
+  - rewrite H0 in H. discriminate.
+  - subst. exists st. assumption.
+  - apply IHceval2.
+    + reflexivity.
+    + assumption.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (ceval_deterministic) *)
@@ -2243,7 +2298,70 @@ Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      st =[ c ]=> st2 / s2 ->
      st1 = st2 /\ s1 = s2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st1 st2 s1 s2 H.
+  revert st2 s2.
+  induction H; intros; subst; try (solve [inversion H; intuition]).
+  - inversion H0. subst. intuition.
+  - inversion H0; subst.
+    + apply IHceval; intuition.
+    + assert (st' = st'0 /\ SBreak = SContinue).
+      { apply IHceval. exact H3. }
+      intuition; discriminate.
+  - destruct result0.
+    + pose proof (H' := seq_continue c1 c2 st st' st'' H H0).
+      inversion H1; subst.
+      * specialize (IHceval1 st2 SBreak H7). intuition. discriminate.
+      * assert (st' = st'0 /\ SContinue = SContinue).
+        { apply IHceval1. exact H4. }
+        destruct H2. subst.
+        apply IHceval2. assumption.
+    + inversion H1; subst.
+      * assert (st' = st2 /\ SContinue = SBreak).
+        { apply IHceval1. exact H7. }
+        intuition. discriminate.
+      * assert (st' = st'0 /\ SContinue = SContinue).
+        { apply IHceval1. exact H4. }
+        destruct H2. subst.
+        apply IHceval2. assumption.
+  - inversion H1; subst.
+    + apply IHceval. exact H9.
+    + rewrite H in H8. discriminate.
+  - inversion H1; subst.
+    + rewrite H in H8. discriminate.
+    + apply IHceval. exact H9.
+  - pose proof (H' := E_WhileFalse st b c H).
+    inversion H0; subst.
+    + intuition.
+    + rewrite H in H3. discriminate.
+    + rewrite H in H3. discriminate.
+  - pose proof (H' := E_WhileTrueBreak st st' b c H H0).
+    inversion H1; subst.
+    + rewrite H7 in H. discriminate.
+    + split.
+      * eapply proj1.
+        apply IHceval.
+        exact H8.
+      * reflexivity.
+    + split.
+      * pose proof (H'' := IHceval st'0 SContinue H5).
+        intuition. discriminate.
+      * reflexivity.
+  - pose proof (H' := E_WhileTrueContinue st st' st'' b c H H0 H1).
+    inversion H2; subst.
+    + rewrite H in H8. discriminate.
+    + assert (contra : st' = st2 /\ SContinue = SBreak).
+      { apply IHceval1. assumption. }
+      intuition. discriminate.
+    + split.
+      * assert (st' = st'0 /\ SContinue = SContinue).
+        { apply IHceval1. exact H6. }
+        destruct H3.
+        subst.
+        eapply proj1.
+        apply IHceval2.
+        exact H10.
+      * reflexivity.
+Qed.
 
 (** [] *)
 End BreakImp.
