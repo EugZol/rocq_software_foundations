@@ -239,7 +239,20 @@ Qed.
 Theorem provable_true_post : forall c P,
     derivable P c True.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  revert P.
+  induction c; intro P; try (solve [econstructor; eauto]).
+  - eapply H_Consequence_post.
+    + constructor.
+    + eauto.
+  - eapply H_Consequence_pre.
+    + constructor.
+    + eauto.
+  - eapply H_Consequence.
+    + eapply H_While with (P := {{ True }}). apply IHc.
+    + assertion_auto''.
+    + assertion_auto''.
+Qed.
 
 (** [] *)
 
@@ -251,7 +264,26 @@ Proof.
 Theorem provable_false_pre : forall c Q,
     derivable False c Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  revert Q.
+  induction c; intro Q;
+    try (solve [eapply H_Consequence_pre; [econstructor; eauto | assertion_auto'']]).
+  - econstructor.
+    + eapply H_Consequence_pre.
+      * apply IHc1.
+      * assertion_auto''.
+    + eapply H_Consequence_pre.
+      * apply IHc2.
+      * assertion_auto''.
+  - eapply H_Consequence.
+    + eapply H_While with (P := {{ False }}).
+      eapply H_Consequence with (Q' := {{ False }}).
+      * apply IHc.
+      * assertion_auto''.
+      * assertion_auto''.
+    + assertion_auto''.
+    + assertion_auto''.
+Qed.
 
 (** [] *)
 
@@ -289,7 +321,19 @@ Proof.
 Theorem hoare_sound : forall P c Q,
   derivable P c Q -> valid P c Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  induction X; unfold valid; intros;
+    inversion H; subst; eauto.
+  unfold valid in IHX.
+  pose proof (hoare_while).
+  unfold valid_hoare_triple in H1.
+  eapply H1.
+  - apply IHX.
+  - apply H7.
+  - eapply IHX.
+    + apply H4.
+    + auto.
+Qed.
 (** [] *)
 
 (** The proof of completeness is more challenging.  To carry out the
@@ -334,7 +378,11 @@ Proof. eauto. Qed.
 Lemma wp_seq : forall P Q c1 c2,
     derivable P c1 (wp c2 Q) -> derivable (wp c2 Q) c2 Q -> derivable P <{c1; c2}> Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  econstructor.
+  - apply X0.
+  - apply X.
+Qed.
 
 (** [] *)
 
@@ -347,7 +395,13 @@ Proof.
 Lemma wp_invariant : forall b c Q,
     valid ({{$(wp <{while b do c end}> Q) /\ b}}) c (wp <{while b do c end}> Q).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold wp.
+  intros.
+  intros st st' hc [hwp1 hwp2] st'' hwhile.
+  apply hwp1.
+  inversion hwhile; subst;
+    econstructor; eauto.
+Qed.
 
 (** [] *)
 
