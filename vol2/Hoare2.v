@@ -194,15 +194,15 @@ These decorations can be constructed as follows:
 (*
   {{ True }}
     if X <= Y then
-              {{                         }} ->>
-              {{                         }}
+              {{ True /\ X <= Y}} ->>
+              {{ Y = X + (Y - X) }}
       Z := Y - X
-              {{                         }}
+              {{ Y = X + Z }}
     else
-              {{                         }} ->>
-              {{                         }}
+              {{ True /\ ~(X <= Y) }} ->>
+              {{ X + Z = X + Z}}
       Y := X + Z
-              {{                         }}
+              {{ Y = X + Z }}
     end
   {{ Y = X + Z }}
 *)
@@ -348,7 +348,8 @@ Proof.
         exact I.
   - (* Loop invariant and negated guard imply post *)
     intros st [Inv GuardFalse].
-    unfold bassertion in GuardFalse. simpl in GuardFalse.
+    unfold bassertion in GuardFalse.
+     simpl in GuardFalse.
     rewrite not_true_iff_false in GuardFalse.
     rewrite negb_false_iff in GuardFalse.
     apply eqb_eq in GuardFalse.
@@ -1020,53 +1021,53 @@ Proof. verify. Qed.
 
 Definition if_minus_plus_dec :=
   <{
-  {{True}}
-  if (X <= Y) then
-              {{ FILL_IN_HERE }} ->>
-              {{ FILL_IN_HERE }}
-    Z := Y - X
-              {{ FILL_IN_HERE }}
-  else
-              {{ FILL_IN_HERE }} ->>
-              {{ FILL_IN_HERE }}
-    Y := X + Z
-              {{ FILL_IN_HERE }}
-  end
-  {{ Y = X + Z}} }>.
+    {{ True }}
+    if X <= Y then
+              {{ True /\ X <= Y}} ->>
+              {{ Y = X + (Y - X) }}
+      Z := Y - X
+              {{ Y = X + Z }}
+    else
+              {{ True /\ ~(X <= Y) }} ->>
+              {{ X + Z = X + Z}}
+      Y := X + Z
+              {{ Y = X + Z }}
+    end
+    {{ Y = X + Z }}
+  }>.
 
 Theorem if_minus_plus_correct :
   outer_triple_valid if_minus_plus_dec.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (div_mod_outer_triple_valid)
 
     Fill in appropriate assertions for the division program from above. *)
 
-Definition div_mod_dec (a b : nat) : decorated :=
+Definition div_mod_dec (n m : nat) : decorated :=
   <{
-  {{ True }} ->>
-  {{ FILL_IN_HERE }}
-    X := a
-             {{ FILL_IN_HERE }};
-    Y := 0
-             {{ FILL_IN_HERE }};
-    while b <= X do
-             {{ FILL_IN_HERE }} ->>
-             {{ FILL_IN_HERE }}
-      X := X - b
-             {{ FILL_IN_HERE }};
-      Y := Y + 1
-             {{ FILL_IN_HERE }}
-    end
-  {{ FILL_IN_HERE }} ->>
-  {{ FILL_IN_HERE }} }>.
+    {{ True }} ->>
+    {{ n * 0 + m = m }}
+      X := m
+                       {{ n * 0 + X = m }};
+      Y := 0
+                       {{ n * Y + X = m }};
+      while n <= X do
+                       {{ n * Y + X = m /\ n <= X }} ->>
+                       {{ n * (Y + 1) + (X - n) = m }}
+        X := X - n
+                       {{ n * (Y + 1) + X = m }};
+        Y := Y + 1
+                       {{ n * Y + X = m }}
+      end
+    {{ n * Y + X = m /\ ~ (n <= X) }} ->>
+    {{ n * Y + X = m /\ X < n }}
+  }>.
 
 Theorem div_mod_outer_triple_valid : forall a b,
   outer_triple_valid (div_mod_dec a b).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -1274,23 +1275,23 @@ Example slow_assignment_dec (m : nat) : decorated :=
   <{
     {{ X = m }}
       Y := 0
-                    {{ FILL_IN_HERE }} ->>
-                    {{ FILL_IN_HERE }} ;
+                    {{ X = m /\ Y = 0 }} ->>
+                    {{ Y + X = m }} ;
       while X <> 0 do
-                    {{ FILL_IN_HERE }} ->>
-                    {{ FILL_IN_HERE }}
+                    {{ Y + X = m /\ X <> 0 }} ->>
+                    {{ Y + 1 + (X - 1) = m }}
          X := X - 1
-                    {{ FILL_IN_HERE }} ;
+                    {{ Y + 1 + X = m }} ;
          Y := Y + 1
-                    {{ FILL_IN_HERE }}
+                    {{ Y + X = m }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ Y + X = m /\ X = 0 }} ->>
     {{ Y = m }}
   }>.
 
 Theorem slow_assignment : forall m,
   outer_triple_valid (slow_assignment_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1356,14 +1357,14 @@ Fixpoint parity x :=
 Definition parity_dec (m:nat) : decorated :=
   <{
   {{ X = m }} ->>
-  {{ FILL_IN_HERE }}
+  {{ #parity X = #parity m }}
     while 2 <= X do
-                  {{ FILL_IN_HERE }} ->>
-                  {{ FILL_IN_HERE }}
+                  {{ #parity X = #parity m /\ 2 <= X }} ->>
+                  {{ #parity (X - 2) = #parity m }}
       X := X - 2
-                  {{ FILL_IN_HERE }}
+                  {{ #parity X = #parity m }}
     end
-  {{ FILL_IN_HERE }} ->>
+  {{ #parity X = #parity m /\ X < 2 }} ->>
   {{ X = #parity m }} }>.
 
 (** If you use the suggested loop invariant, you may find the following
@@ -1394,7 +1395,11 @@ Qed.
 Theorem parity_outer_triple_valid : forall m,
   outer_triple_valid (parity_dec m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  verify;
+    try (solve [destruct (st X) as [| n]; try destruct n; lia]).
+  - rewrite <- H. apply parity_ge_2. exact H0.
+  - rewrite <- H. symmetry. apply parity_lt_2. lia.
+Qed.
 
 (** [] *)
 
@@ -1476,22 +1481,22 @@ Proof.
 Definition sqrt_dec (m:nat) : decorated :=
   <{
     {{ X = m }} ->>
-    {{ FILL_IN_HERE }}
+    {{ X = m /\ 0*0 <= m }}
       Z := 0
-                   {{ FILL_IN_HERE }};
+                   {{ X = m /\ Z*Z <= m }};
       while ((Z+1)*(Z+1) <= X) do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ X=m /\ Z*Z<=m /\ (Z+1)*(Z+1)<=X }} ->>
+                   {{ X=m /\ (Z+1)*(Z+1)<=m }}
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ X=m /\ Z*Z<=m }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ X=m /\ Z*Z<=m /\ ~((Z+1)*(Z+1)<=X) }} ->>
     {{ Z*Z<=m /\ m<(Z+1)*(Z+1) }}
   }>.
 
 Theorem sqrt_correct : forall m,
   outer_triple_valid (sqrt_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 
 (* ================================================================= *)
 (** ** Example: Squaring *)
@@ -1613,14 +1618,45 @@ Compute fact 5. (* ==> 120 *)
     For example, recall that [1 + ...] is easier to work with than
     [... + 1]. *)
 
-Example factorial_dec (m:nat) : decorated
-(* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Example factorial_dec (m : nat) : decorated :=
+  <{
+    {{ X = m }}
+    Y := 0 (* counter *)
+        {{ X = m /\ Y = 0 }};
+    Z := 1 (* result *)
+        {{ X = m /\ Z = #fact Y /\ Y >= 0}};
+    while Y <> X do
+        {{ X = m /\ Z = #fact Y /\ Y >= 0 /\ Y <> X }}
+      Y := Y + 1
+        {{ X = m /\ Z = #fact (Y - 1) /\ Y >= 1 }};
+      Z := Z * Y
+        {{ X = m /\ Z = #fact Y /\ Y >= 0 }}
+    end
+    {{ X = m /\ Z = #fact Y /\ ~ (Y <> X) }} ->>
+    {{ Z = #fact m }}
+  }>.
 
-(* FILL IN HERE *)
+Theorem fact_s : forall n, fact (S n) = S n * fact n.
+Proof.
+  simpl.
+  induction n.
+  - reflexivity.
+  - lia.
+Qed.
 
 Theorem factorial_correct: forall m,
   outer_triple_valid (factorial_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  verify.
+  - f_equal. lia.
+  - destruct (st Y).
+    + lia.
+    + replace (S n - 1) with n by lia.
+      rewrite mul_comm.
+      rewrite <- fact_s.
+      reflexivity.
+  - f_equal. lia.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1641,31 +1677,45 @@ Proof. (* FILL IN HERE *) Admitted.
 
 Definition minimum_dec (a b : nat) : decorated :=
   <{
-    {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ True }}
       X := a
-             {{ FILL_IN_HERE }};
+             {{ X = a }};
       Y := b
-             {{ FILL_IN_HERE }};
+             {{ X = a /\ Y = b }};
       Z := 0
-             {{ FILL_IN_HERE }};
+             {{ Z + X = a /\ Z + Y = b }};
       while X <> 0 && Y <> 0 do
-             {{ FILL_IN_HERE }} ->>
-             {{ FILL_IN_HERE }}
+             {{ Z + X = a /\ Z + Y = b /\ X <> 0 /\ Y <> 0}} ->>
+             {{ Z + 1 + (X - 1) = a /\ Z + 1 + (Y - 1) = b /\ X <> 0 /\ Y <> 0 }}
         X := X - 1
-             {{ FILL_IN_HERE }};
+             {{ Z + 1 + X = a /\ Z + 1 + (Y - 1) = b }};
         Y := Y - 1
-             {{ FILL_IN_HERE }};
+             {{ Z + 1 + X = a /\ Z + 1 + Y = b }};
         Z := Z + 1
-             {{ FILL_IN_HERE }}
+             {{ Z + X = a /\ Z + Y = b }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ Z + X = a /\ Z + Y = b /\ (X = 0 \/ Y = 0) }} ->>
     {{ Z = #min a b }}
   }>.
 
 Theorem minimum_correct : forall a b,
   outer_triple_valid (minimum_dec a b).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  verify;
+    try (symmetry in H0; apply andb_true_eq in H0; destruct H0).
+  - symmetry in H.
+    rewrite negb_true_iff in H.
+    rewrite eqb_neq in H.
+    exact H.
+  - symmetry in H0.
+    rewrite negb_true_iff in H0.
+    rewrite eqb_neq in H0.
+    exact H0.
+  - rewrite andb_false_iff in H0.
+    rewrite !negb_false_iff in H0.
+    rewrite !eqb_eq in H0.
+    exact H0.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1692,40 +1742,40 @@ Proof. (* FILL IN HERE *) Admitted.
 *)
 Definition two_loops_dec (a b c : nat) : decorated :=
   <{
-    {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ True }}
       X := 0
-                   {{ FILL_IN_HERE }};
+                   {{ X = 0 }};
       Y := 0
-                   {{ FILL_IN_HERE }};
+                   {{ X = 0 /\ Y = 0 }};
       Z := c
-                   {{ FILL_IN_HERE }};
+                   {{ X = 0 /\ Y = 0 /\ Z = c }} ->>
+                   {{ Z = c + X /\ Y = 0 }};
       while X <> a do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ Z = c + X /\ Y = 0 /\ X <> a }} ->>
+                   {{ Z + 1 = c + X + 1 /\ Y = 0 }}
         X := X + 1
-                   {{ FILL_IN_HERE }};
+                   {{ Z + 1 = c + X /\ Y = 0 }};
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ Z = c + X /\ Y = 0 }}
       end
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }};
+                   {{ Z = c + X /\ Y = 0 /\ X = a }} ->>
+                   {{ Z = c + a /\ Y = 0 }} ->>
+                   {{ Z = c + a + Y }};
       while Y <> b do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ Z = c + a + Y /\ Y <> b }} ->>
+                   {{ Z + 1 = c + a + Y + 1 }}
         Y := Y + 1
-                   {{ FILL_IN_HERE }};
+                   {{ Z + 1 = c + a + Y }};
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ Z = c + a + Y}}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ Z = c + a + Y /\ Y = b }} ->>
     {{ Z = a + b + c }}
   }>.
 
 Theorem two_loops : forall a b c,
   outer_triple_valid (two_loops_dec a b c).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 
 (** [] *)
 
@@ -1756,25 +1806,25 @@ Fixpoint pow2 n :=
 
 Definition dpow2_dec (n : nat) :=
   <{
-    {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ True }}
       X := 0
-               {{ FILL_IN_HERE }};
+               {{ X = 0 }};
       Y := 1
-               {{ FILL_IN_HERE }};
+               {{ X = 0 /\ Y = 1 }};
       Z := 1
-               {{ FILL_IN_HERE }};
+               {{ X = 0 /\ Y = 1 /\ Z = 1 }} ->>
+               {{ Z = #pow2 X /\ Y = #pow2 (X + 1) - 1 }};
       while X <> n do
-               {{ FILL_IN_HERE }} ->>
-               {{ FILL_IN_HERE }}
+               {{ Z = #pow2 X /\ Y = #pow2 (X + 1) - 1 /\ X <> n }} ->>
+               {{ 2 * Z = #pow2 (X + 1) /\ Y + 2 * Z = #pow2 (X + 2) - 1 }}
         Z := 2 * Z
-               {{ FILL_IN_HERE }};
+               {{ Z = #pow2 (X + 1) /\ Y + Z = #pow2 (X + 2) - 1 }};
         Y := Y + Z
-               {{ FILL_IN_HERE }};
+               {{ Z = #pow2 (X + 1) /\ Y = #pow2 (X + 2) - 1 }};
         X := X + 1
-               {{ FILL_IN_HERE }}
+               {{ Z = #pow2 X /\ Y = #pow2 (X + 1) - 1 }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ Z = #pow2 X /\ Y = #pow2 (X + 1) - 1 /\ X = n }} ->>
     {{ Y = #pow2 (n+1) - 1 }}
   }>.
 
@@ -1798,7 +1848,16 @@ Qed.
 Theorem dpow2_down_correct : forall n,
   outer_triple_valid (dpow2_dec n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  verify.
+  - rewrite add_0_r. rewrite <- pow2_plus_1. reflexivity.
+  - rewrite add_0_r.
+    replace (st X + 2) with (st X + 1 + 1) by lia.
+    rewrite !pow2_plus_1.
+    lia.
+  - replace (st X + 2) with (st X + 1 + 1) by lia.
+    rewrite !pow2_plus_1.
+    lia.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced, optional (fib_eqn)
@@ -1831,7 +1890,27 @@ Lemma fib_eqn : forall n,
   n > 0 ->
   fib n + fib (pred n) = fib (1 + n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros.
+  destruct n.
+  - lia.
+  - replace (pred (S n)) with n by reflexivity.
+    rewrite (add_comm 1 (S n)).
+    replace (S n + 1) with (S (n + 1)) by reflexivity.
+    simpl.
+    destruct n.
+    + reflexivity.
+    + replace (S n + 1) with (S (n + 1)) by reflexivity.
+      replace (n + 1) with (S n) by lia.
+      enough (fib n + fib (S n) = fib (S (S n))) by lia.
+      destruct n.
+      * reflexivity.
+      * destruct n.
+        ** reflexivity.
+        ** replace (fib (S (S (S (S n))))) with
+             ((fib (S (S (S n)))) + (fib (S (S n)))) by reflexivity.
+           rewrite add_comm.
+           reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (fib)
@@ -1862,34 +1941,42 @@ Definition T : string := "T".
 
 Definition dfib (n : nat) : decorated :=
   <{
-    {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ True }}
     X := 1
-                {{ FILL_IN_HERE }} ;
+                {{ X = 1 }} ;
     Y := 1
-                {{ FILL_IN_HERE }} ;
+                {{ X = 1 /\ Y = 1 }} ->>
+                {{ X = 1 /\ Y = 1 /\ X >= 1 }};
     Z := 1
-                {{ FILL_IN_HERE }} ;
+                {{ Y = #fib (X - 1) /\ Z = #fib X /\ X >= 1}} ;
     while X <> 1 + n do
-                  {{ FILL_IN_HERE }} ->>
-                  {{ FILL_IN_HERE }}
+                  {{ Y = #fib (X - 1) /\ Z = #fib X /\ X >= 1 /\ X <> 1 + n }} ->>
+                  {{ Y = #fib (X - 1) /\ Z = #fib X /\ X >= 1 }}
       T := Z
-                  {{ FILL_IN_HERE }};
+                  {{ Y = #fib (X - 1) /\ Z = #fib X /\ T = Z /\ X >= 1 }} ->>
+                  {{ Y = #fib (X - 1) /\ T = #fib X /\ Z = #fib X /\ X >= 1 }};
       Z := Z + Y
-                  {{ FILL_IN_HERE }};
+                  {{ Y = #fib (X - 1) /\ T = #fib X /\ Z = #fib X + #fib (X - 1) /\ X >= 1 }};
       Y := T
-                  {{ FILL_IN_HERE }};
+                  {{ Y = #fib X /\ T = #fib X /\ Z = #fib X + #fib (X - 1) /\ X >= 1 }};
       X := 1 + X
-                  {{ FILL_IN_HERE }}
+                  {{ Y = #fib (X - 1) /\ Z = #fib X /\ X >= 1 }}
     end
-    {{ FILL_IN_HERE }} ->>
+    {{ Y = #fib (X - 1) /\ Z = #fib X /\ X >= 1 /\ X = 1 + n }} ->>
     {{ Y = #fib n }}
    }>.
 
 Theorem dfib_correct : forall n,
   outer_triple_valid (dfib n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  verify.
+  - f_equal. lia.
+  - replace (st X - 1) with (pred (st X)) by lia.
+    destruct (st X).
+    + lia.
+    + apply fib_eqn. lia.
+  - f_equal. lia.
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (improve_dcom)
@@ -1968,27 +2055,24 @@ Definition is_wp P c Q :=
     What are weakest preconditions of the following commands
     for the following postconditions?
 
-  1) {{ ? }}  skip  {{ X = 5 }}
+  1) {{ X = 5 }}  skip  {{ X = 5 }}
 
-  2) {{ ? }}  X := Y + Z {{ X = 5 }}
+  2) {{ Y + Z = 5 }}  X := Y + Z {{ X = 5 }}
 
-  3) {{ ? }}  X := Y  {{ X = Y }}
+  3) {{ True }}  X := Y  {{ X = Y }}
 
-  4) {{ ? }}
+  4) {{ (X = 0 /\ Z = 4) \/ (X <> 0 /\ W = 3) }}
      if X = 0 then Y := Z + 1 else Y := W + 2 end
      {{ Y = 5 }}
 
-  5) {{ ? }}
+  5) {{ False }}
      X := 5
      {{ X = 0 }}
 
-  6) {{ ? }}
+  6) {{ True }}
      while true do X := 0 end
      {{ X = 0 }}
 *)
-(* FILL IN HERE
-
-    [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (is_wp)
 
