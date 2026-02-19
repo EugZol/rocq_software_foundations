@@ -679,12 +679,7 @@ forward.  (* return s; *)
 (** Here we prove that the postcondition of the function body
     entails the postcondition demanded by the function specification. *)
 entailer!.
-hint.
-autorewrite with sublist in *|-.
-hint.
-autorewrite with sublist.
-hint.
-reflexivity.
+do 3 f_equal. list_solve.
 Qed.
 
 (* ================================================================= *)
